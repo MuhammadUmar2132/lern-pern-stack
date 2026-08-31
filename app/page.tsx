@@ -6,17 +6,20 @@ interface Item {
   id: number;
   title: string;
   description: string;
+  image_url?: string | null;
 }
 
 export default function Home() {
   const [items, setItems] = useState<Item[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const API_URL = "http://localhost:5000/api/items";
 
-  // Fetch Items
   const fetchItems = async () => {
     try {
       const res = await fetch(API_URL);
@@ -33,35 +36,67 @@ export default function Home() {
     fetchItems();
   }, []);
 
-  // Submit Form
+  const uploadImage = async () => {
+    if (!selectedFile) return imageUrl;
+
+    const formData = new FormData();
+    formData.append("image", selectedFile);
+
+    setUploading(true);
+    try {
+      const res = await fetch(`${API_URL}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error("Upload failed");
+      }
+
+      const data = await res.json();
+      setImageUrl(data.url);
+      setSelectedFile(null);
+      return data.url;
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      return imageUrl;
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title) return;
 
     try {
+      const uploadedImage = await uploadImage();
+
       if (editingId) {
-        // Update Item
         const res = await fetch(`${API_URL}/${editingId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, description }),
+          body: JSON.stringify({ title, description, imageUrl: uploadedImage }),
         });
         if (res.ok) {
           setEditingId(null);
           setTitle("");
           setDescription("");
+          setImageUrl("");
+          setSelectedFile(null);
           fetchItems();
         }
       } else {
-        // Create Item
         const res = await fetch(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, description }),
+          body: JSON.stringify({ title, description, imageUrl: uploadedImage }),
         });
         if (res.ok) {
           setTitle("");
           setDescription("");
+          setImageUrl("");
+          setSelectedFile(null);
           fetchItems();
         }
       }
@@ -70,7 +105,6 @@ export default function Home() {
     }
   };
 
-  // Delete Item
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this item?")) return;
     try {
@@ -83,11 +117,11 @@ export default function Home() {
     }
   };
 
-  // Edit Item
   const handleEdit = (item: Item) => {
     setEditingId(item.id);
     setTitle(item.title);
     setDescription(item.description);
+    setImageUrl(item.image_url || "");
   };
 
   return (
@@ -98,11 +132,10 @@ export default function Home() {
             CRUD App
           </h1>
           <p className="mt-4 text-lg text-gray-500">
-            A simple full-stack CRUD with Next.js, Express, and PostgreSQL
+            A simple full-stack CRUD with Next.js, Express, PostgreSQL, and Cloudinary uploads
           </p>
         </div>
 
-        {/* Form Card */}
         <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-xl border border-gray-100">
           <h2 className="text-2xl font-bold mb-6 text-gray-800">
             {editingId ? "Edit Item" : "Add New Item"}
@@ -122,6 +155,7 @@ export default function Home() {
                 required
               />
             </div>
+
             <div>
               <label htmlFor="description" className="block text-sm font-medium text-gray-700">
                 Description
@@ -135,6 +169,28 @@ export default function Home() {
                 placeholder="Enter description..."
               />
             </div>
+
+            <div>
+              <label htmlFor="image" className="block text-sm font-medium text-gray-700">
+                Image
+              </label>
+              <input
+                type="file"
+                id="image"
+                accept="image/*"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                className="mt-2 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              />
+              {selectedFile && (
+                <p className="mt-2 text-xs text-gray-500">
+                  Selected: {selectedFile.name}
+                </p>
+              )}
+              {imageUrl && !selectedFile && (
+                <img src={imageUrl} alt="Selected preview" className="mt-3 h-32 w-auto rounded-lg object-cover border" />
+              )}
+            </div>
+
             <div className="flex justify-end gap-3">
               {editingId && (
                 <button
@@ -143,6 +199,8 @@ export default function Home() {
                     setEditingId(null);
                     setTitle("");
                     setDescription("");
+                    setImageUrl("");
+                    setSelectedFile(null);
                   }}
                   className="inline-flex justify-center rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all"
                 >
@@ -151,15 +209,15 @@ export default function Home() {
               )}
               <button
                 type="submit"
-                className="inline-flex justify-center rounded-lg border border-transparent bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all"
+                disabled={uploading}
+                className="inline-flex justify-center rounded-lg border border-transparent bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all disabled:opacity-60"
               >
-                {editingId ? "Update Item" : "Create Item"}
+                {uploading ? "Uploading..." : editingId ? "Update Item" : "Create Item"}
               </button>
             </div>
           </form>
         </div>
 
-        {/* List Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
             <h3 className="text-lg font-medium leading-6 text-gray-900">Item List</h3>
@@ -175,11 +233,16 @@ export default function Home() {
                   key={item.id}
                   className="px-6 py-6 hover:bg-gray-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-indigo-600 truncate">{item.title}</p>
-                    {item.description && (
-                      <p className="mt-1 text-sm text-gray-500">{item.description}</p>
+                  <div className="flex items-start gap-4">
+                    {item.image_url && (
+                      <img src={item.image_url} alt={item.title} className="h-20 w-20 rounded-lg object-cover border" />
                     )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-indigo-600 truncate">{item.title}</p>
+                      {item.description && (
+                        <p className="mt-1 text-sm text-gray-500">{item.description}</p>
+                      )}
+                    </div>
                   </div>
                   <div className="flex gap-2 shrink-0">
                     <button

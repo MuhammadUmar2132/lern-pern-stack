@@ -1,36 +1,51 @@
-const { query } = require('../config/db');
+const { query } = require('../config/db').default.default;
 
-class ItemModel {
-  static async getAll() {
-    const { rows } = await query('SELECT * FROM items ORDER BY id ASC');
-    return rows;
-  }
+const migrationSQL = `
+  CREATE TABLE IF NOT EXISTS items (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    image_url TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+`;
 
-  static async getById(id) {
-    const { rows } = await query('SELECT * FROM items WHERE id = $1', [id]);
-    return rows[0];
-  }
+const getAll = async () => {
+  const result = await query('SELECT * FROM items ORDER BY id ASC');
+  return result.rows;
+};
 
-  static async create(title, description) {
-    const { rows } = await query(
-      'INSERT INTO items (title, description) VALUES ($1, $2) RETURNING *',
-      [title, description]
-    );
-    return rows[0];
-  }
+const getById = async (id) => {
+  const result = await query('SELECT * FROM items WHERE id = $1', [id]);
+  return result.rows[0];
+};
 
-  static async update(id, title, description) {
-    const { rows } = await query(
-      'UPDATE items SET title = $1, description = $2 WHERE id = $3 RETURNING *',
-      [title, description, id]
-    );
-    return rows[0];
-  }
+const create = async (title, description, imageUrl) => {
+  const result = await query(
+    'INSERT INTO items (title, description, image_url) VALUES ($1, $2, $3) RETURNING *',
+    [title, description, imageUrl || null]
+  );
+  return result.rows[0];
+};
 
-  static async delete(id) {
-    const { rowCount } = await query('DELETE FROM items WHERE id = $1', [id]);
-    return rowCount > 0;
-  }
-}
+const update = async (id, title, description, imageUrl) => {
+  const result = await query(
+    'UPDATE items SET title = $1, description = $2, image_url = $3 WHERE id = $4 RETURNING *',
+    [title, description, imageUrl || null, id]
+  );
+  return result.rows[0];
+};
 
-module.exports = ItemModel;
+const remove = async (id) => {
+  const result = await query('DELETE FROM items WHERE id = $1 RETURNING id', [id]);
+  return result.rowCount > 0;
+};
+
+module.exports = {
+  migrationSQL,
+  getAll,
+  getById,
+  create,
+  update,
+  remove,
+};

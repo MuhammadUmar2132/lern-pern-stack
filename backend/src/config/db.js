@@ -1,32 +1,22 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+import pg from 'pg';
+import 'dotenv/config';
+
+const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
 pool.on('connect', () => {
-  console.log('Connected to PostgreSQL database');
+  console.log('✅ Connected to PostgreSQL');
 });
 
-// Initialize table if it doesn't exist
-const initDb = async () => {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS items (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        description TEXT
-      );
-    `);
-    console.log('Database initialized');
-  } catch (err) {
-    console.error('Error initializing database', err);
-  }
-};
+pool.on('error', (err) => {
+  console.error('❌ PostgreSQL connection error:', err);
+  process.exit(1);
+});
 
-initDb();
+const query = (text, params) => pool.query(text, params);
 
-module.exports = {
-  query: (text, params) => pool.query(text, params),
-};
+export { pool, query };
+export default { pool, query };
