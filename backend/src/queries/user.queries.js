@@ -35,3 +35,5 @@ export const remove = async (id) => {
   const { rows } = await db.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
   return rows[0];
 };
+
+export default { getAll, getById, getByEmail, create, update, remove };
